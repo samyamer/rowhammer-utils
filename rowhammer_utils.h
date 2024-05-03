@@ -1,4 +1,5 @@
 
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -209,6 +210,15 @@ void hammer(char* a, char* b, int toggles){
 }
 
 
+// from Ingab mjrnr
+static inline __attribute__ ((always_inline))
+void clflushopt(volatile void *p)
+{
+	asm volatile ("clflushopt (%0)\n"::"r" (p):"memory");
+}
+
+
+
 bool check_consecutive(u_int64_t mem, u_int64_t size){
 	u_int64_t prev = get_physical_addr(mem);
 	u_int64_t phys;
@@ -225,5 +235,67 @@ bool check_consecutive(u_int64_t mem, u_int64_t size){
 	}
 	return out;
 	
+}
+
+static inline __attribute__ ((always_inline))
+void mfence()
+{
+	asm volatile ("mfence":::"memory");
+}
+
+int64_t hammer_thp_prehammer(char** v_lst, int skip_iter, int len_aggr)
+{
+	printf("\n------Hammer------\n");
+	// fprintf(stderr, "prehammer             %d: ", skip_iter);
+	// fprintf(out_fd, " prehammer             %d: ", skip_iter);
+	// fflush(out_fd);
+	int len_dummy = skip_iter;
+	// int len_aggr = patt->len;
+
+
+	// char **v_lst = (char **)malloc(sizeof(char *) * len_aggr);
+	// for (size_t i = 0; i < len_aggr; i++)
+	// {
+	// 	v_lst[i] = thp_dram_2_virt(patt->d_lst[i], patt->v_baselst[i]);
+	// }
+
+
+
+	// /uint64_t cl0, cl1; // ns
+	size_t rounds = 700000;
+	// fprintf(stderr, "r: %lu l: %lu \n", patt->rounds, patt->len);
+
+	for (int i = 0; i < 200; i++)
+	{
+		for (size_t j = 0; j < len_dummy; j += 1)
+		{
+			*(volatile char *)v_lst[j];
+		}
+		for (size_t j = 0; j < len_dummy; j += 1)
+		{
+			clflushopt(v_lst[j]);
+		}
+		mfence();
+	}
+
+	// cl0 = realtime_now();
+
+	for (int i = 0; i < rounds; i++)
+	{
+		for (size_t j = 0; j < len_aggr; j += 1)
+		{
+			*(volatile char *)v_lst[j];
+		}
+		for (size_t j = 0; j < len_aggr; j += 1)
+		{
+			clflushopt(v_lst[j]);
+		}
+		mfence();
+	}
+	// cl1 = realtime_now();
+
+	// free(v_lst);
+	// return (cl1-cl0) / 1000000; //ms
+	return 0; // ns
 }
 
