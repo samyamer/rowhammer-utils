@@ -262,7 +262,7 @@ int64_t hammer_thp_prehammer(char** v_lst, int skip_iter, int len_aggr)
 
 
 	// /uint64_t cl0, cl1; // ns
-	size_t rounds = 700000;
+	size_t rounds = 900000;
 	// fprintf(stderr, "r: %lu l: %lu \n", patt->rounds, patt->len);
 
 	for (int i = 0; i < 200; i++)
@@ -298,4 +298,222 @@ int64_t hammer_thp_prehammer(char** v_lst, int skip_iter, int len_aggr)
 	// return (cl1-cl0) / 1000000; //ms
 	return 0; // ns
 }
+
+
+
+// __attribute__((always_inline)) __attribute__((optimize("unroll-loops"))) void
+// sync_with_ref(int bank_no) { // NK: Detect the refresh in 
+// @param
+// : bank_no
+//   uint64_t start_cycle;
+//   uint64_t end_cycle;
+//   while (true) {
+//     mfence();
+//     start_cycle = rdtscp();
+//     for (int k = 0; k < no_rows; k++) {
+//       *(volatile char *)(addr_list[bank_no][k]);
+//     }
+//     for (int k = 0; k < no_rows; k++) {
+//       asm volatile("clflushopt (%0)"
+//                    :
+//                    : "r"((volatile char *)(addr_list[bank_no][k]))
+//                    : "memory");
+//     }
+//     end_cycle = rdtscp();
+//     if ((end_cycle - start_cycle) > threshold) {
+//       // printf("detected ref with: %ld\n",end_cycle-start_cycle);
+//       break;
+//     }
+//   }
+// }
+// struct histogram_vals {
+//   int start_cc;
+//   int latency;
+// };
+// // We hope that most occurring number is the number of rounds we can have
+// int findMostOccurring(int *counts, int count_size) {
+//   // Normally we would use a hash table but C..
+//   int range = 500;      // Safe assumption
+//   int frequency[range]; // Array to store the frequency of elements
+//   uint64_t sum = 0;
+//   for (int i = 0; i < range; i++) {
+//     frequency[i] = 0;
+//   }
+//   for (int i = 0; i < count_size; i++) {
+//     if (counts[i] < range) {
+//       frequency[counts[i]]++;
+//       sum += counts[i];
+//     } else
+//       printf("something wrong with this data\n");
+//   }
+//   // Find the most frequent element
+//   int max_count = 0;
+//   int most_occuring = -1;
+//   for (int i = 0; i < range; i++) {
+//     if (frequency[i] > max_count) {
+//       max_count = frequency[i];
+//       most_occuring = i;
+//     }
+//   }
+//   int average = sum / count_size;
+//   printf("Average: %d\n", average);
+//   return most_occuring;
+// }
+// int *count_between_outliers(histogram_vals *data, int size, int *count_size,
+//                             int no_rows) {
+//   int *counts = NULL;
+//   uint64_t count = 0;
+//   int num_outliers = 0;
+//   int between_outliers = 0;
+//   int threshold_add = (no_rows < 8) ? no_rows * 5 : no_rows * 10;
+//   // threshold = 50 + threshold_add;
+//   threshold = 250;
+//   int min_val = INT_MAX;
+//   for (int i = 0; i < size; i++) {
+//     count += data[i].latency;
+//     if (data[i].latency < min_val) {
+//       min_val = data[i].latency;
+//     }
+//   }
+//   int average = count / (size);
+//   count = 0;
+//   int outlier_threshold =
+//       min_val +
+//       threshold; /*average ile mi toplayacagiz yoksa en dusuk degerle mi?*/
+//   threshold = outlier_threshold; // globaldeki degeri degistirmek icin.
+//   printf("Average: %d -- Min Val: %d -- Outlier threshold to catch REFs: %d\n",
+//          average, min_val, outlier_threshold);
+//   for (int i = 0; i < size; i++) {
+//     if (data[i].latency >= outlier_threshold) {
+//       printf("OUTLIER: %d\n", data[i].latency);
+//       if (between_outliers) {
+//         // If we are already between outliers, we've found the end of an
+//         // interval.
+//         counts = (int *)realloc(counts, (num_outliers + 1) * sizeof(int));
+//         counts[num_outliers++] = count;
+//         count = 0;
+//       }
+//       between_outliers = 1; // Starting to count after this outlier
+//     } else if (between_outliers) {
+//       count++; // Counting the number of normal latency values
+//     }
+//   }
+//   // If the last value is not an outlier, end the count
+//   if (count != 0) {
+//     counts = (int *)realloc(counts, (num_outliers + 1) * sizeof(int));
+//     counts[num_outliers++] = count;
+//   }
+//   *count_size = num_outliers; // Set the output parameter to the number of
+//                               // intervals counted
+//   return counts;              // Return the array of counts
+// }
+// uint64_t acts_per_ref(HammerSuite *suite) {
+//   uint64_t no_of_rounds = 20000;
+//   int ref_per_64ms = 0;
+//   histogram_vals *histogram =
+//       (histogram_vals *)malloc(sizeof(histogram_vals) * no_of_rounds);
+//   volatile uint64_t *lat = (uint64_t *)malloc(sizeof(uint64_t) * no_of_rounds);
+//   MemoryBuffer *mem = suite->mem;
+//   DRAMAddr d_base = suite->d_base;
+//   d_base.col = 0;
+//   DRAMAddr temp;
+//   temp.row = d_base.row + 5;
+//   temp.bank = 3;
+//   temp.col = 0;
+//   addr_list = (char ***)malloc(sizeof(char **) * get_banks_cnt());
+//   for (int x = 0; x < get_banks_cnt(); x++) {
+//     addr_list[x] = (char **)malloc(sizeof(char *) * no_rows);
+//   }
+//   for (int x = 0; x < get_banks_cnt(); x++) {
+//     temp.bank = x;
+//     for (size_t i = 0; i < no_rows; i++) {
+//       temp.row = temp.row + 30;
+//       addr_list[x][i] = phys_2_virt(dram_2_phys_skx(temp), mem);
+//     }
+//   }
+//   for (uint64_t a = 0; a < no_of_rounds; a++) {
+//     lat[a] = 0; // warm up the cache
+//   }
+//   while (ref_per_64ms < 7000 ||
+//          ref_per_64ms > 9800) { // Collect until it is reliable.
+//     for (int x = 0; x < 10; x++)
+//       sched_yield();
+//     // for(int k=0;k<no_rows;k++){
+//     //  asm volatile("clflushopt (%0)" : : "r" ((volatile char*)(addr_list[k]))
+//     // : "memory");
+//     // }
+//     uint64_t cl0, cl1;
+//     cl0 = realtime_now();
+//     uint64_t init_cycles = rdtsc();
+//     uint64_t base_to_cut = (init_cycles / 10000000000ULL) * 10000000000ULL;
+//     for (int x = 0; x < no_of_rounds; x++) {
+//       mfence();
+//       for (int k = 0; k < no_rows; k++) {
+//         *(volatile char *)(addr_list[3][k]); // 3. banktaki rowlara erisiyoruz
+//       }
+//       for (int k = 0; k < no_rows; k++) {
+//         asm volatile("clflushopt (%0)"
+//                      :
+//                      : "r"((volatile char *)(addr_list[3][k]))
+//                      : "memory");
+//       }
+//       lat[x] = rdtscp();
+//     }
+//     cl1 = realtime_now();
+//     int time_taken = (cl1 - cl0) / 1000000; // Convert ns to ms
+//     // ANALYZE
+//     for (int i = 0; i < no_of_rounds; i++) {
+//       // printf("i: %ld ----- lat[i]: %ld\n",i, lat[i]);
+//       uint64_t res;
+//       if (i == 0)
+//         res = lat[i] - init_cycles;
+//       else
+//         res = lat[i] - lat[i - 1];
+//       histogram[i].start_cc = lat[i] - base_to_cut;
+//       histogram[i].latency = res;
+//     }
+//     // OUTPUT THE RESULTS
+//     FILE *myfile;
+//     myfile = fopen("histogram-raw.txt", "w");
+//     if (myfile == NULL) {
+//       perror("Error opening file");
+//       return -1;
+//     }
+//     for (int i = 0; i < no_of_rounds; i++) {
+//       fprintf(myfile, "%d %d\n", histogram[i].start_cc, histogram[i].latency);
+//     }
+//     fclose(myfile); // Close the file
+//     // GET THE NUMBER OF ROUNDS POSSIBLE BETWEEN TWO REFS.
+//     int *count_size = (int *)malloc(sizeof(int));
+//     int *counts =
+//         count_between_outliers(histogram, no_of_rounds, count_size, no_rows);
+//     for (int x = 0; x < (*count_size); x++) {
+//       printf("count: %d\n", counts[x]);
+//     }
+//     no_rounds_per_ref = findMostOccurring(counts, *count_size);
+//     printf("Most occurring element: %d\n", no_rounds_per_ref);
+//     ref_per_64ms = (*count_size * 64) / time_taken;
+//     printf("Number of outliers: %d -- Time taken: %d ms -- Ref per 64ms: %d\n",
+//            *count_size, time_taken, ref_per_64ms);
+//   }
+//   return no_rounds_per_ref;
+// }
+
+// no_rows = 10;        // no rows to use in ref sync
+// acts_per_ref(suite); // Collect statistics about refresh
+
+// sync_with_ref(patt->d_lst[0].bank);
+// // TODO: Global
+// __attribute__((always_inline))
+// __attribute__((optimize("unroll-loops"))) inline void
+// sync_with_ref(int bank_no); // NK: Detect the refresh in 
+// @param
+// : bank_no
+// int avg_benchmark = 0;
+// int no_rows = 0; // how many rows we accessed while calculating the number of
+//                  // rounds possible each ref
+// int no_rounds_per_ref = 0; // how many rounds we can hammer with no_rows.** e.g.
+//                            // 12 rounds with 10 rows **
+// int threshold = 0;         // threshold to detect refreshes with no_rows.
+// char ***addr_list = NULL; // dummy addresses used in detecting refreshes. size: no_rows
 

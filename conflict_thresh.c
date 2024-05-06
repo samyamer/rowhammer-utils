@@ -1,7 +1,7 @@
 #include "rowhammer_utils.h"
 #define _GNU_SOURCE
 #include <sys/mman.h>
-#define ROW_CONFLICT_TH 470
+#define ROW_CONFLICT_TH 450
 
 
 
@@ -55,7 +55,14 @@ typedef struct{
     char* victims[4];
 }ds_pair; // this struct will hold all the relevant base addresses for a double-sided hammer
 
+typedef struct{
+    ds_pair* pairs[16];
+    int num_pairs[16]; 
+}bank_pairs;
+
 DRAMLayout      g_mem_layout = {{{0x2040,0x24000,0x48000,0x90000}, 4}, 0x3fffe0000, ROW_SIZE-1};
+
+bank_pairs bank_pairs_arr;
 
 
 int num_blocks = 5;
@@ -194,10 +201,10 @@ void find_bank_conflict(contig_chunk* mem_chunk, int target_bank){
                 dram_address(phys, dram);
                 printf("%d\n", ndx);
                 // printf("BA0:%lx BA1:%lx BA2:%lx BA3:%lx row:%lx\n", dram->BA0,dram->BA1, dram->BA2, dram->BA3, dram->row_num);
-                // printf("Get DRAM row: %lx\n",get_dram_row_thp((u_int64_t)curr));
-                // printf("Get BANK: %lx\n",get_bank((u_int64_t)curr, virt_offset));
+                printf("Get DRAM row: %lx\n",get_dram_row_thp((u_int64_t)curr));
+                printf("Get BANK: %lx\n",get_bank((u_int64_t)curr));
                 printf("(%lx, %lx)\n",curr,phys);
-                // printf("%lu\n",acc_time);
+                printf("%lu\n",acc_time);
                 printf("----------------------------\n");
                 // add to array
                 mem_chunk->bank_contig_rows[target_bank].conflicts[ndx] = (char*)curr;
@@ -489,6 +496,56 @@ int ten_sided_temp(ds_pair* pairs_array, int num_pairs){
    
 }
 
+void multi_bank(){
+    char** agg_list = malloc(20*sizeof(char*));
+   for(int bank1=0; bank1<16; bank1++){
+       for(int bank2=(bank1+1); bank2<16; bank2++){
+           int bank1_start=0;
+           int bank2_start=0;
+           int bank1_end=0;
+           int bank2_end=0;
+           int ndx=0;
+           while((bank1_end < bank_pairs_arr.num_pairs[bank1]) &&  (bank2_end < bank_pairs_arr.num_pairs[bank2])){
+            //    agg_list[ndx] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[0];
+            //    agg_list[ndx+1] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
+            //    agg_list[ndx+2] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[0];
+            //    agg_list[ndx+3] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[4];
+               
+               agg_list[ndx] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[0];
+            //    agg_list[ndx+1] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
+                agg_list[ndx+1] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[0];
+               agg_list[ndx+2] =  bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
+               agg_list[ndx+3] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[4];
+               ndx+=4;
+               bank1_end++;
+               bank2_end++;
+               if(ndx>=20){
+                   printf("%d  aggressors\n", ndx);
+                   for(int i=0; i<ndx; i++){
+                       printf("%lx\t", get_physical_addr((u_int64_t) agg_list[i]));
+                       printf("Bank %ld:\n", get_bank((u_int64_t) agg_list[i]));
+                    }
+                   // fill the victims
+                   fill_victims(bank_pairs_arr.pairs[bank1], bank_pairs_arr.num_pairs[bank1]);
+                   fill_victims(bank_pairs_arr.pairs[bank2], bank_pairs_arr.num_pairs[bank2]);
+                   // hammer
+                    int x =  hammer_thp_prehammer(agg_list, 4, 20);
+                   // scan the victims
+                   check_victims(bank_pairs_arr.pairs[bank1], bank_pairs_arr.num_pairs[bank1], 0x00);
+                   check_victims(bank_pairs_arr.pairs[bank2], bank_pairs_arr.num_pairs[bank2], 0x00);
+                  // reset
+                  ndx=0;
+                  bank1_end = bank1_start+3;
+                  bank1_start+=3;
+                  bank2_end = bank2_start+3;
+                  bank2_start+=3;
+               }
+
+           }
+       }
+   }
+}
+
 
 
 
@@ -528,8 +585,9 @@ void main(void){
 
 
     // For every bank, for every chunk, create a list of contiguous rows 
-    ds_pair* pairs_array = (ds_pair*) malloc(200*sizeof(ds_pair));
+    
     for(int j=0; j < 16; j++){
+        ds_pair* pairs_array = (ds_pair*) malloc(200*sizeof(ds_pair));
         printf("//////////////////////Conflict for Bank %d////////////////////////////\n", j);
         for(int i=0; i < num_blocks; i++){
             printf("-------------Chunk %d------------------------\n", i);
@@ -537,8 +595,12 @@ void main(void){
         }
         printf("//////////////////////Create Pairs.....................\n");
         int num_pairs = create_hammer_pairs(chunks, j, pairs_array); //create a liist of double sided pairs
-        int flippy = ten_sided_temp(pairs_array, num_pairs);
+        bank_pairs_arr.pairs[j] = pairs_array;
+        bank_pairs_arr.num_pairs[j] = num_pairs;
+        // int flippy = ten_sided_temp(pairs_array, num_pairs);
     }
+    multi_bank();
+
     
 
     // char** conflicts = (char**) malloc(sizeof(char*) * 500);
