@@ -1,7 +1,7 @@
 #include "rowhammer_utils.h"
 #define _GNU_SOURCE
 #include <sys/mman.h>
-#define ROW_CONFLICT_TH 450
+#define ROW_CONFLICT_TH 530
 
 
 
@@ -183,33 +183,41 @@ void find_bank_conflict(contig_chunk* mem_chunk, int target_bank){
             curr = (uint64_t) mem_chunk->base + (i*PAGE_SIZE) + 64*v;
             if(curr == base){continue;}
             
-            u_int64_t acc_time = 0;
-            u_int64_t time;
-            int j=0;
             
-            while(j<8000){
-                time = row_conflict_time((u_int64_t) (base), curr);
-                if(time > 1000){continue;}
-                j++;
-                acc_time+=time;
-            }
-            acc_time = acc_time/8000;
+            // u_int64_t acc_time = 0;
+            // u_int64_t time;
+            // int j=0;
+            
+            // while(j<8000){
+            //     time = row_conflict_time((u_int64_t) (base), curr);
+            //     if(time > 1000){continue;}
+            //     j++;
+            //     acc_time+=time;
+            // }
+            // acc_time = acc_time/8000;
 
-            // for visibility
-            if(acc_time > ROW_CONFLICT_TH){  
-                phys = get_physical_addr(curr);
-                dram_address(phys, dram);
-                printf("%d\n", ndx);
-                // printf("BA0:%lx BA1:%lx BA2:%lx BA3:%lx row:%lx\n", dram->BA0,dram->BA1, dram->BA2, dram->BA3, dram->row_num);
+            // // for visibility
+            // if(acc_time > ROW_CONFLICT_TH){  
+            //     phys = get_physical_addr(curr);
+            //     dram_address(phys, dram);
+            //     printf("%d\n", ndx);
+            //     // printf("BA0:%lx BA1:%lx BA2:%lx BA3:%lx row:%lx\n", dram->BA0,dram->BA1, dram->BA2, dram->BA3, dram->row_num);
+            //     printf("Get DRAM row: %lx\n",get_dram_row_thp((u_int64_t)curr));
+            //     printf("Get BANK: %lx\n",get_bank((u_int64_t)curr));
+            //     printf("(%lx, %lx)\n",curr,phys);
+            //     printf("%lu\n",acc_time);
+            //     printf("----------------------------\n");
+            //     // add to array
+            //     mem_chunk->bank_contig_rows[target_bank].conflicts[ndx] = (char*)curr;
+            //     ndx++;
+
+            // }
+
+            if(get_bank(base) == get_bank(curr)){
+                mem_chunk->bank_contig_rows[target_bank].conflicts[ndx] = (char*)curr;
                 printf("Get DRAM row: %lx\n",get_dram_row_thp((u_int64_t)curr));
                 printf("Get BANK: %lx\n",get_bank((u_int64_t)curr));
-                printf("(%lx, %lx)\n",curr,phys);
-                printf("%lu\n",acc_time);
-                printf("----------------------------\n");
-                // add to array
-                mem_chunk->bank_contig_rows[target_bank].conflicts[ndx] = (char*)curr;
                 ndx++;
-
             }
         }
 
