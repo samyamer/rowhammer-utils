@@ -245,7 +245,7 @@ void mfence()
 
 int64_t hammer_thp_prehammer(char** v_lst, int skip_iter, int len_aggr)
 {
-	printf("\n------Hammer------\n");
+	// printf("\n------Hammer------\n");
 	// fprintf(stderr, "prehammer             %d: ", skip_iter);
 	// fprintf(out_fd, " prehammer             %d: ", skip_iter);
 	// fflush(out_fd);
@@ -262,7 +262,7 @@ int64_t hammer_thp_prehammer(char** v_lst, int skip_iter, int len_aggr)
 
 
 	// /uint64_t cl0, cl1; // ns
-	size_t rounds = 900000;
+	size_t rounds = 540000;
 	// fprintf(stderr, "r: %lu l: %lu \n", patt->rounds, patt->len);
 
 	for (int i = 0; i < 200; i++)

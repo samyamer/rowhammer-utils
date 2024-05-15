@@ -71,7 +71,7 @@ bank_pairs bank_pairs_arr;
 
 contiguous_bank bank_rows;
 
-int num_blocks = 20;
+int num_blocks = 2;
 // only works with 2MB aligned pages because the first 21 bits of the virtual addresses are identical to the first in phys
 u_int64_t get_bank(uint64_t v_addr){
     
@@ -163,7 +163,7 @@ void find_bank_conflict(contig_chunk* mem_chunk, int target_bank){
         for(int j=0; j<2; j++){
             base = (uint64_t)mem_chunk->base + i*PAGE_SIZE + 64*j;
             if(get_bank(base) == target_bank){
-                printf("Found base\n");
+                // printf("Found base\n");
                 found_base=1;
                 break;
             }
@@ -178,12 +178,12 @@ void find_bank_conflict(contig_chunk* mem_chunk, int target_bank){
     phys = get_physical_addr(base);
     dram_address(phys, dram);
 
-    printf("Base page memory\n");
+    // printf("Base page memory\n");
    
-    printf("BA0:%lx BA1:%lx BA2:%lx BA3:%lx row:%lx\n", dram->BA0,dram->BA1, dram->BA2, dram->BA3, dram->row_num);
-    printf("%lx\n",phys);
-    printf("----------------------------\n");
-    printf("starting row conflict\n");
+    // printf("BA0:%lx BA1:%lx BA2:%lx BA3:%lx row:%lx\n", dram->BA0,dram->BA1, dram->BA2, dram->BA3, dram->row_num);
+    // printf("%lx\n",phys);
+    // printf("----------------------------\n");
+    // printf("starting row conflict\n");
     for(int i=0; i<MEM_SIZE/PAGE_SIZE; i++){
         for (int v=0; v< 2; v++){
             curr = (uint64_t) mem_chunk->base + (i*PAGE_SIZE) + 64*v;
@@ -322,13 +322,13 @@ void print_pairs(ds_pair* pairs_array, int num_pairs){
 // takes in all the memory chunks and returns a pointer to a list of hammering pairs
 // the list is to be used in templating
 // so this function is just for organizing things
-int create_hammer_pairs(contig_chunk* chunks, int target_bank, ds_pair* pairs_array, int start_ndx){
+int create_hammer_pairs(contig_chunk* chunks, int target_bank, ds_pair* pairs_array){
     // ds_pair* pairs_array = (ds_pair*) malloc(200*sizeof(ds_pair));
     int pair_ndx=0;
 
     for(int i=0; i< num_blocks; i++){ // go through the conflict array of the target bank of each chunk. The conflict array is basically a list of contig memory rows
         if(chunks[i].bank_contig_rows[target_bank].num_conf < 12){continue;} // if the chunk doesn't have a full 3 rows for double sided, skip it
-        int ndx=start_ndx;
+        int ndx=0;
         int agg_parity=0;
         while((ndx*4) <= chunks[i].bank_contig_rows[target_bank].num_conf  -4){
             if((ndx%2) == 0){
@@ -354,7 +354,7 @@ int create_hammer_pairs(contig_chunk* chunks, int target_bank, ds_pair* pairs_ar
         }
         
     }
-    print_pairs(pairs_array,  pair_ndx);
+    // print_pairs(pairs_array,  pair_ndx);
     return pair_ndx;
 }
 
@@ -378,7 +378,7 @@ void fill_victims(ds_pair* pairs_array, int num_pairs){
     return;
 }
 
-void check_victims(ds_pair* pairs_array, int num_pairs, uint8_t expected){
+int check_victims(ds_pair* pairs_array, int num_pairs, uint8_t expected){
     for(int i=0; i< num_pairs; i++){
         for(int j=0; j < 4; j++){
             char* addr = (char*) (((uint64_t) pairs_array[i].victims[j]) &(~(PAGE_SIZE-1)) );
@@ -386,10 +386,21 @@ void check_victims(ds_pair* pairs_array, int num_pairs, uint8_t expected){
             for(int n=0; n<PAGE_SIZE; n++){
                 if((uint8_t) addr[n] != expected ){
                     printf("FLIP in addr (%lx, %lx): %hhx\n", get_physical_addr((u_int64_t)(addr + n)),(u_int64_t)(addr + n), addr[n]);
+                    if(n<=31){
+                    // return 1;
                 }
+                if(n==2121){
+                    // return 1;
+                }
+                if(n == 2122){
+                    // return 1;
+                }
+                }
+                
             }
         }   
     }
+    return 0 ;
 
 }
 
@@ -548,113 +559,121 @@ void fill(char** addr, int num, uint8_t val){
     }
     
 }
-void check(char** victims, int num, uint8_t expected){
+int check(char** victims, int num, uint8_t expected){
     for(int i=0; i<num; i++){
         char* addr = (char*) (((uint64_t) victims[i]) &(~(PAGE_SIZE-1)) );
         for(int n=0; n<PAGE_SIZE; n++){
             if((uint8_t) addr[n] != expected ){
                 printf("FLIP in addr (%lx, %lx): %hhx\n", get_physical_addr((u_int64_t)(addr + n)),(u_int64_t)(addr + n), addr[n]);
+                if(n<=31){
+                    return 1;
+                }
             }
         }
         
+
     }   
+    return 0;
 }
 
 
-void multi_bank(){
-    printf("MULTI..........\n");
-    print_bank_rows();
-    printf("done\n");
-    char** agg_list = malloc(20*sizeof(char*));
-    char** victim_list = malloc(80*sizeof(char*));
-    int agg_ndx=0;
-    int conf_ndx=0;
-    int victim_ndx=0;
+// int multi_bank(){
+//     printf("MULTI..........\n");
+//     // print_bank_rows();
+//     printf("done\n");
+//     char** agg_list = malloc(20*sizeof(char*));
+//     char** victim_list = malloc(80*sizeof(char*));
+//     int agg_ndx=0;
+//     int conf_ndx=0;
+//     int victim_ndx=0;
     
-    int bank1_start=0;
-    int bank2_start=0;
-    // int bank1_end=0;
-    // int bank2_end=0;
-    int ndx=0;
+//     int bank1_start=0;
+//     int bank2_start=0;
+//     // int bank1_end=0;
+//     // int bank2_end=0;
+//     int ndx=0;
 
-    for(int bank1=0; bank1< 16; bank1++){
-        for(int bank2=(bank1+1); bank2<16; bank2++){
-            int bank1_base=0;
-            int bank2_base=0;
+//     for(int bank1=0; bank1< 16; bank1++){
+//         for(int bank2=(bank1+2); bank2<16; bank2+=1){
+//             int bank1_base=0;
+//             int bank2_base=0;
 
-            int bank1_start=0;
-            int bank2_start=0;
-            while((bank1_start < bank_rows.num_addr[bank1] - 12) &&  (bank2_start < bank_rows.num_addr[bank2] - 12)){
-                agg_list[ndx] = bank_rows.addresses[bank1][bank1_start];
-                agg_list[ndx+1] = bank_rows.addresses[bank2][bank2_start]; // aggressors
-                ndx+=2;
+//             int bank1_start=0;
+//             int bank2_start=0;
+//             while((bank1_start < bank_rows.num_addr[bank1] - 12) &&  (bank2_start < bank_rows.num_addr[bank2] - 12)){
+//                 agg_list[ndx] = bank_rows.addresses[bank1][bank1_start];
+//                 agg_list[ndx+1] = bank_rows.addresses[bank2][bank2_start]; // aggressors
+//                 ndx+=2;
 
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+1]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+2]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+3]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+1]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+2]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+3]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
 
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+1]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+2]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+3]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+1]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+2]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+3]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
 
                 
-                victim_list[victim_ndx]=bank_rows.addresses[bank1][bank1_start+4];
-                victim_list[victim_ndx+1]=bank_rows.addresses[bank1][bank1_start+5];
-                victim_list[victim_ndx+2]=bank_rows.addresses[bank1][bank1_start+6];
-                victim_list[victim_ndx+3]=bank_rows.addresses[bank1][bank1_start+7];
+//                 victim_list[victim_ndx]=bank_rows.addresses[bank1][bank1_start+4];
+//                 victim_list[victim_ndx+1]=bank_rows.addresses[bank1][bank1_start+5];
+//                 victim_list[victim_ndx+2]=bank_rows.addresses[bank1][bank1_start+6];
+//                 victim_list[victim_ndx+3]=bank_rows.addresses[bank1][bank1_start+7];
 
-                victim_list[victim_ndx+4]=bank_rows.addresses[bank2][bank2_start+4];
-                victim_list[victim_ndx+5]=bank_rows.addresses[bank2][bank2_start+5];
-                victim_list[victim_ndx+6]=bank_rows.addresses[bank2][bank2_start+6];
-                victim_list[victim_ndx+7]=bank_rows.addresses[bank2][bank2_start+7];
-                victim_ndx+=8;
+//                 victim_list[victim_ndx+4]=bank_rows.addresses[bank2][bank2_start+4];
+//                 victim_list[victim_ndx+5]=bank_rows.addresses[bank2][bank2_start+5];
+//                 victim_list[victim_ndx+6]=bank_rows.addresses[bank2][bank2_start+6];
+//                 victim_list[victim_ndx+7]=bank_rows.addresses[bank2][bank2_start+7];
+//                 victim_ndx+=8;
 
-                agg_list[ndx] = bank_rows.addresses[bank1][bank1_start+8];
-                agg_list[ndx+1] = bank_rows.addresses[bank2][bank2_start+8]; // aggressors
-                ndx+=2;
+//                 agg_list[ndx] = bank_rows.addresses[bank1][bank1_start+8];
+//                 agg_list[ndx+1] = bank_rows.addresses[bank2][bank2_start+8]; // aggressors
+//                 ndx+=2;
 
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+1+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+2+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+3+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+1+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+2+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank1][bank1_start+3+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
 
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+1+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+2+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
-                memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+3+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+1+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+2+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
+//                 memset(  (char*) (((uint64_t) bank_rows.addresses[bank2][bank2_start+3+8]) &(~(PAGE_SIZE-1)) ), 0xFF, PAGE_SIZE);
 
-                if(ndx>=20){
-                    printf("%d  aggressors\n", ndx);
-                    for(int i=0; i<ndx; i++){
-                        printf("%lx\t", (u_int64_t) agg_list[i]);
-                        // printf("%lx\t", get_physical_addr((u_int64_t) agg_list[i]));
-                        printf("Bank %ld:\n", get_bank((u_int64_t) agg_list[i]));
-                    }
-                    fill(victim_list,victim_ndx, 0x00);
-                    int x =  hammer_thp_prehammer(agg_list, 4, 20);
-                    check(victim_list,victim_ndx, 0x00);
+//                 if(ndx>=20){
+//                     // printf("%d  aggressors\n", ndx);
+//                     // for(int i=0; i<ndx; i++){
+//                     //     printf("%lx\t", (u_int64_t) agg_list[i]);
+//                     //     // printf("%lx\t", get_physical_addr((u_int64_t) agg_list[i]));
+//                     //     printf("Bank %ld:\n", get_bank((u_int64_t) agg_list[i]));
+//                     // }
+//                     fill(victim_list,victim_ndx, 0x00);
+//                     int x =  hammer_thp_prehammer(agg_list, 4, 20);
+//                     if(check(victim_list,victim_ndx, 0x00)){
+//                         return 1;
+//                     }
 
-                    ndx=0;
-                    victim_ndx=0;
-                    bank1_base+=4;
-                    bank2_base+=4;
+//                     ndx=0;
+//                     victim_ndx=0;
+//                     bank1_base+=4;
+//                     bank2_base+=4;
 
-                    bank1_start = bank1_base;
-                    bank2_start = bank2_base;
-                }else{
-                    bank1_start+=12;
-                    bank2_start+=12;
-                }
+                    
+//                 }else[
+
+//                 ]
+
+//                 bank1_start+=12;
+//                 bank2_start+=12;
                 
                
-            }
+//             }
             
-        }
-    }
-    return;
-}
+//         }
+//     }
+//     return 0 ;
+// }
 
 
 // void multi_bank(){
@@ -708,70 +727,64 @@ void multi_bank(){
 // }
 
 
-// void multi_bank(){
-//     char** agg_list = malloc(40*sizeof(char*));
-//    for(int bank1=0; bank1<16; bank1++){
-//        for(int bank2=(bank1+2); bank2<16; bank2+=2){
-//            for(int bank3=(bank2+2); bank3<16; bank3+=2){
-//                for(int bank4=(bank3+2); bank4<16; bank4+=2){
-//                     int bank1_start=0;
-//                     int bank2_start=0;
-//                     int bank1_end=0;
-//                     int bank2_end=0;
-//                     int bank3_end=0;
-//                     int bank4_end=0;
-//                     int ndx=0;
-//                     while((bank1_end < bank_pairs_arr.num_pairs[bank1]) &&  (bank2_end < bank_pairs_arr.num_pairs[bank2])  &&  (bank3_end < bank_pairs_arr.num_pairs[bank3]) &&  (bank3_end < bank_pairs_arr.num_pairs[bank3])  &&  (bank4_end < bank_pairs_arr.num_pairs[bank4]) ){
-//                         //    agg_list[ndx] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[0];
-//                         //    agg_list[ndx+1] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
-//                         //    agg_list[ndx+2] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[0];
-//                         //    agg_list[ndx+3] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[4];
-                        
-//                         agg_list[ndx] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[0];
-//                         agg_list[ndx+1] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[0];
-//                         agg_list[ndx+2] = bank_pairs_arr.pairs[bank3][bank3_end].aggressors[0];
-//                         agg_list[ndx+3] = bank_pairs_arr.pairs[bank4][bank4_end].aggressors[0];
-                        
-//                         agg_list[ndx+4] =  bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
-//                         agg_list[ndx+5] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[4];
-//                         agg_list[ndx+6] = bank_pairs_arr.pairs[bank3][bank3_end].aggressors[4];
-//                         agg_list[ndx+7] = bank_pairs_arr.pairs[bank4][bank4_end].aggressors[4];
-//                         ndx+=8;
-//                         bank1_end++;
-//                         bank2_end++;
-//                         if(ndx>=40){
-//                             printf("%d  aggressors\n", ndx);
-//                             for(int i=0; i<ndx; i++){
-//                                 printf("%lx\t", get_physical_addr((u_int64_t) agg_list[i]));
-//                                 printf("Bank %ld:\n", get_bank((u_int64_t) agg_list[i]));
-//                                 }
-//                             // fill the victims
-//                             fill_victims(bank_pairs_arr.pairs[bank1], bank_pairs_arr.num_pairs[bank1]);
-//                             fill_victims(bank_pairs_arr.pairs[bank2], bank_pairs_arr.num_pairs[bank2]);
-//                             fill_victims(bank_pairs_arr.pairs[bank3], bank_pairs_arr.num_pairs[bank3]);
-//                             fill_victims(bank_pairs_arr.pairs[bank4], bank_pairs_arr.num_pairs[bank4]);
-//                             // hammer
-//                                 int x =  hammer_thp_prehammer(agg_list, 0, 40);
-//                             // scan the victims
-//                             check_victims(bank_pairs_arr.pairs[bank1], bank_pairs_arr.num_pairs[bank1], 0x00);
-//                             check_victims(bank_pairs_arr.pairs[bank2], bank_pairs_arr.num_pairs[bank2], 0x00);
-//                             check_victims(bank_pairs_arr.pairs[bank3], bank_pairs_arr.num_pairs[bank3], 0x00);
-//                             check_victims(bank_pairs_arr.pairs[bank4], bank_pairs_arr.num_pairs[bank4], 0x00);
-//                             // reset
-//                             ndx=0;
-//                             //   bank1_end = bank1_start+3;
-//                             //   bank1_start+=3;
-//                             //   bank2_end = bank2_start+3;
-//                             //   bank2_start+=3;
-//                         }
+int multi_bank(){
+    char** agg_list = malloc(20*sizeof(char*));
+   for(int bank1=0; bank1<16; bank1++){
+       for(int bank2=(bank1+1); bank2<16; bank2++){
+           int bank1_start=0;
+           int bank2_start=0;
+           int bank1_end=0;
+           int bank2_end=0;
+           int ndx=0;
+           while((bank1_end < bank_pairs_arr.num_pairs[bank1]) &&  (bank2_end < bank_pairs_arr.num_pairs[bank2])){
+            //    agg_list[ndx] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[0];
+            //    agg_list[ndx+1] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
+            //    agg_list[ndx+2] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[0];
+            //    agg_list[ndx+3] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[4];
+               
+               agg_list[ndx] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[0];
+            //    agg_list[ndx+1] = bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
+                agg_list[ndx+1] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[0];
+               agg_list[ndx+2] =  bank_pairs_arr.pairs[bank1][bank1_end].aggressors[4];
+               agg_list[ndx+3] = bank_pairs_arr.pairs[bank2][bank2_end].aggressors[4];
+               ndx+=4;
+               bank1_end++;
+               bank2_end++;
+               if(ndx>=20){
+                //    printf("%d  aggressors\n", ndx);
+                //    for(int i=0; i<ndx; i++){
+                       
+                //        printf("Bank %ld:\n", get_bank((u_int64_t) agg_list[i]));
+                //     }
+                   // fill the victims
+                   fill_victims(bank_pairs_arr.pairs[bank1], bank_pairs_arr.num_pairs[bank1]);
+                   fill_victims(bank_pairs_arr.pairs[bank2], bank_pairs_arr.num_pairs[bank2]);
+                   // hammer
+                    int x =  hammer_thp_prehammer(agg_list, 0, 20);
+                   // scan the victims
+                   if(check_victims(bank_pairs_arr.pairs[bank1], bank_pairs_arr.num_pairs[bank1], 0x00)){
+                       
+                       return 1;
+                   }
+                   if(check_victims(bank_pairs_arr.pairs[bank2], bank_pairs_arr.num_pairs[bank2], 0x00)){
+                       
+                       return 1;
+                   }
+                   
+                   
+                  // reset
+                  ndx=0;
+                  bank1_end = bank1_start+3;
+                  bank1_start+=3;
+                  bank2_end = bank2_start+3;
+                  bank2_start+=3;
+               }
 
-//                     }
-//                }
-//            }
-           
-//        }
-//    }
-// }
+           }
+       }
+   }
+   return 0;
+}
 
 
 void main(void){
@@ -812,21 +825,39 @@ void main(void){
 
     // For every bank, for every chunk, create a list of contiguous rows 
     
-    for(int j=0; j < 16; j++){
-        ds_pair* pairs_array = (ds_pair*) malloc(200*sizeof(ds_pair));
-        // printf("//////////////////////Conflict for Bank %d////////////////////////////\n", j);
-        for(int i=0; i < num_blocks; i++){
-            // printf("-------------Chunk %d------------------------\n", i);
-            find_bank_conflict(&chunks[i], j);
+    int tries = 0;
+    while(tries < 5){
+        for(int j=0; j < 16; j++){
+            ds_pair* pairs_array = (ds_pair*) malloc(200*sizeof(ds_pair));
+            // printf("//////////////////////Conflict for Bank %d////////////////////////////\n", j);
+            for(int i=0; i < num_blocks; i++){
+                // printf("-------------Chunk %d------------------------\n", i);
+                find_bank_conflict(&chunks[i], j);
+            }
+            // printf("//////////////////////Create Pairs.....................\n");
+            int num_pairs = create_hammer_pairs(chunks, j, pairs_array); //create a liist of double sided pairs
+            bank_pairs_arr.pairs[j] = pairs_array;
+            bank_pairs_arr.num_pairs[j] = num_pairs;
+            // int flippy = ten_sided_temp(pairs_array, num_pairs);
         }
-        // printf("//////////////////////Create Pairs.....................\n");
-        // int num_pairs = create_hammer_pairs(chunks, j, pairs_array); //create a liist of double sided pairs
-        // bank_pairs_arr.pairs[j] = pairs_array;
-        // bank_pairs_arr.num_pairs[j] = num_pairs;
-        // int flippy = ten_sided_temp(pairs_array, num_pairs);
+        // setup_bank_rows(chunks);
+        if(multi_bank()){
+            exit(0);
+        }
+        alloc = alloc_buffer(chunks, num_blocks);
+    
+        for(int i=0; i<num_blocks; i++){
+            chunks[i].bank_contig_rows = malloc(16*sizeof(contig_rows));
+        }
+        for(int i=0; i < num_blocks; i++){
+        printf("%d - (%lx, %lx)\n",i,(uint64_t)chunks[i].base, get_physical_addr((uint64_t)chunks[i].base));
+        printf("offset %lx\n", chunks[i].virt_offset);
+        }
+        tries++;
     }
-    setup_bank_rows(chunks);
-    multi_bank();
+    
+   
+    
      
 
     
